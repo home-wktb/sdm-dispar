@@ -366,7 +366,121 @@
       </div>
     </div>
   </div>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Website Anda</title>
+    <style>
+        /* CSS untuk tampilan login */
+        #login-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #login-box {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        #login-box input, #login-box button {
+            margin: 10px;
+            padding: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Konten utama website -->
+    <h1>Selamat Datang di Website Saya</h1>
+    <p>Ini adalah konten publik yang bisa dilihat semua orang.</p>
 
+    <!-- Tombol Upload/Hapus (Awalnya tersembunyi) -->
+    <div id="admin-controls" style="display: none;">
+        <button id="uploadBtn">Upload Data</button>
+        <button id="deleteBtn">Hapus Data</button>
+    </div>
+
+    <!-- Modal Login -->
+    <div id="login-modal">
+        <div id="login-box">
+            <h2>Login Admin</h2>
+            <input type="password" id="admin-password" placeholder="Masukkan Password">
+            <button onclick="checkPassword()">Masuk</button>
+            <p id="error-msg" style="color: red;"></p>
+        </div>
+    </div>
+
+    <script>
+        // Password admin (GANTI DENGAN PASSWORD ANDA)
+        const ADMIN_PASSWORD = "password123"; 
+
+        // Cek apakah sudah login
+        function isLoggedIn() {
+            return localStorage.getItem("admin-auth") === "true";
+        }
+
+        // Tampilkan/menyembunyikan kontrol admin
+        function toggleAdminControls() {
+            const controls = document.getElementById("admin-controls");
+            if (isLoggedIn()) {
+                controls.style.display = "block";
+                document.getElementById("login-modal").style.display = "none";
+            } else {
+                controls.style.display = "none";
+                document.getElementById("login-modal").style.display = "flex";
+            }
+        }
+
+        // Validasi password
+        function checkPassword() {
+            const input = document.getElementById("admin-password").value;
+            if (input === ADMIN_PASSWORD) {
+                localStorage.setItem("admin-auth", "true");
+                toggleAdminControls();
+            } else {
+                document.getElementById("error-msg").textContent = "Password salah!";
+            }
+        }
+
+        // Logout (opsional)
+        function logout() {
+            localStorage.removeItem("admin-auth");
+            toggleAdminControls();
+        }
+
+        // Inisialisasi saat halaman dimuat
+        window.onload = function() {
+            toggleAdminControls();
+
+            // Tambahkan event listener untuk tombol upload/hapus
+            if (isLoggedIn()) {
+                document.getElementById("uploadBtn").addEventListener("click", function() {
+                    alert("Fitur upload hanya untuk admin!");
+                    // Tambahkan logika upload di sini
+                });
+
+                document.getElementById("deleteBtn").addEventListener("click", function() {
+                    alert("Fitur hapus hanya untuk admin!");
+                    // Tambahkan logika hapus di sini
+                });
+
+                // Tombol logout (opsional)
+                const logoutBtn = document.createElement("button");
+                logoutBtn.textContent = "Logout";
+                logoutBtn.onclick = logout;
+                document.getElementById("admin-controls").appendChild(logoutBtn);
+            }
+        };
+    </script>
+</body>
+</html>
   <script>
     // Inisialisasi data
     let originalData = [];
