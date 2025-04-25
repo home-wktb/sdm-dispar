@@ -369,9 +369,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Website Anda</title>
+    <title>Website Saya</title>
     <style>
-        /* CSS untuk tampilan login */
+        /* Gaya dasar */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        /* Mode Admin */
+        .admin-mode .editable {
+            background-color: #fffde7; /* Sorot area yang bisa diedit */
+            padding: 5px;
+            border: 1px dashed #ffc107;
+        }
+        
+        /* Tombol Admin */
+        #admin-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        
         #login-modal {
             display: none;
             position: fixed;
@@ -379,107 +400,151 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 1000;
+            background: rgba(0,0,0,0.7);
             justify-content: center;
             align-items: center;
-        }
-        #login-box {
-            background: white;
-            padding: 20px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        #login-box input, #login-box button {
-            margin: 10px;
-            padding: 8px;
         }
     </style>
 </head>
 <body>
-    <!-- Konten utama website -->
-    <h1>Selamat Datang di Website Saya</h1>
-    <p>Ini adalah konten publik yang bisa dilihat semua orang.</p>
+    <!-- Panel Admin -->
+    <div id="admin-panel">
+        <button id="admin-toggle">🔒 Login Admin</button>
+    </div>
 
-    <!-- Tombol Upload/Hapus (Awalnya tersembunyi) -->
-    <div id="admin-controls" style="display: none;">
-        <button id="uploadBtn">Upload Data</button>
-        <button id="deleteBtn">Hapus Data</button>
+    <!-- Konten Website -->
+    <h1 class="editable" data-id="judul">Judul Website</h1>
+    <p class="editable" data-id="deskripsi">Ini adalah konten default yang bisa diubah oleh admin.</p>
+    
+    <!-- Daftar Data (Contoh) -->
+    <div id="data-list">
+        <!-- Data akan dimuat di sini -->
     </div>
 
     <!-- Modal Login -->
     <div id="login-modal">
-        <div id="login-box">
+        <div style="background: white; padding: 20px; border-radius: 5px;">
             <h2>Login Admin</h2>
-            <input type="password" id="admin-password" placeholder="Masukkan Password">
-            <button onclick="checkPassword()">Masuk</button>
-            <p id="error-msg" style="color: red;"></p>
+            <input type="password" id="admin-password" placeholder="Password">
+            <button onclick="login()">Masuk</button>
+            <p id="login-error" style="color: red;"></p>
         </div>
     </div>
 
     <script>
-        // Password admin (GANTI DENGAN PASSWORD ANDA)
-        const ADMIN_PASSWORD = "password123"; 
+        // ======================
+        // KONFIGURASI ADMIN
+        // ======================
+        const ADMIN_PASSWORD = "admin123"; // GANTI PASSWORD INI!
+        let isAdmin = false;
 
-        // Cek apakah sudah login
-        function isLoggedIn() {
-            return localStorage.getItem("admin-auth") === "true";
+        // ======================
+        // DATA CONTOH (Simpan di localStorage)
+        // ======================
+        const sampleData = [
+            { id: 1, nama: "Data Contoh 1", deskripsi: "Ini data pertama" },
+            { id: 2, nama: "Data Contoh 2", deskripsi: "Ini data kedua" }
+        ];
+
+        // Load data dari localStorage atau gunakan sample
+        function loadData() {
+            const savedData = localStorage.getItem('websiteData');
+            return savedData ? JSON.parse(savedData) : sampleData;
         }
 
-        // Tampilkan/menyembunyikan kontrol admin
-        function toggleAdminControls() {
-            const controls = document.getElementById("admin-controls");
-            if (isLoggedIn()) {
-                controls.style.display = "block";
-                document.getElementById("login-modal").style.display = "none";
+        // ======================
+        // FUNGSI UTAMA
+        // ======================
+        function renderData() {
+            const data = loadData();
+            const container = document.getElementById('data-list');
+            container.innerHTML = '';
+            
+            data.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'data-item';
+                itemElement.innerHTML = `
+                    <h3>${item.nama}</h3>
+                    <p>${item.deskripsi}</p>
+                    ${isAdmin ? `
+                    <button onclick="editData(${item.id})">✏️ Edit</button>
+                    <button onclick="deleteData(${item.id})">🗑️ Hapus</button>
+                    ` : ''}
+                    <hr>
+                `;
+                container.appendChild(itemElement);
+            });
+        }
+
+        // ======================
+        // FUNGSI ADMIN
+        // ======================
+        function login() {
+            const password = document.getElementById('admin-password').value;
+            if (password === ADMIN_PASSWORD) {
+                isAdmin = true;
+                localStorage.setItem('adminLoggedIn', 'true');
+                document.body.classList.add('admin-mode');
+                document.getElementById('login-modal').style.display = 'none';
+                renderData();
             } else {
-                controls.style.display = "none";
-                document.getElementById("login-modal").style.display = "flex";
+                document.getElementById('login-error').textContent = 'Password salah!';
             }
         }
 
-        // Validasi password
-        function checkPassword() {
-            const input = document.getElementById("admin-password").value;
-            if (input === ADMIN_PASSWORD) {
-                localStorage.setItem("admin-auth", "true");
-                toggleAdminControls();
-            } else {
-                document.getElementById("error-msg").textContent = "Password salah!";
-            }
-        }
-
-        // Logout (opsional)
         function logout() {
-            localStorage.removeItem("admin-auth");
-            toggleAdminControls();
+            isAdmin = false;
+            localStorage.removeItem('adminLoggedIn');
+            document.body.classList.remove('admin-mode');
+            renderData();
         }
 
-        // Inisialisasi saat halaman dimuat
-        window.onload = function() {
-            toggleAdminControls();
-
-            // Tambahkan event listener untuk tombol upload/hapus
-            if (isLoggedIn()) {
-                document.getElementById("uploadBtn").addEventListener("click", function() {
-                    alert("Fitur upload hanya untuk admin!");
-                    // Tambahkan logika upload di sini
-                });
-
-                document.getElementById("deleteBtn").addEventListener("click", function() {
-                    alert("Fitur hapus hanya untuk admin!");
-                    // Tambahkan logika hapus di sini
-                });
-
-                // Tombol logout (opsional)
-                const logoutBtn = document.createElement("button");
-                logoutBtn.textContent = "Logout";
-                logoutBtn.onclick = logout;
-                document.getElementById("admin-controls").appendChild(logoutBtn);
+        function editData(id) {
+            const data = loadData();
+            const item = data.find(d => d.id === id);
+            const newNama = prompt("Edit Nama:", item.nama);
+            const newDeskripsi = prompt("Edit Deskripsi:", item.deskripsi);
+            
+            if (newNama && newDeskripsi) {
+                item.nama = newNama;
+                item.deskripsi = newDeskripsi;
+                localStorage.setItem('websiteData', JSON.stringify(data));
+                renderData();
             }
-        };
+        }
+
+        function deleteData(id) {
+            if (confirm("Yakin ingin menghapus data ini?")) {
+                const data = loadData().filter(d => d.id !== id);
+                localStorage.setItem('websiteData', JSON.stringify(data));
+                renderData();
+            }
+        }
+
+        // ======================
+        // INISIALISASI
+        // ======================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Cek login saat page load
+            isAdmin = localStorage.getItem('adminLoggedIn') === 'true';
+            if (isAdmin) document.body.classList.add('admin-mode');
+            
+            // Render data awal
+            renderData();
+            
+            // Tombol admin
+            document.getElementById('admin-toggle').addEventListener('click', () => {
+                if (isAdmin) {
+                    logout();
+                    document.getElementById('admin-toggle').textContent = '🔒 Login Admin';
+                } else {
+                    document.getElementById('login-modal').style.display = 'flex';
+                }
+            });
+        });
     </script>
 </body>
+</html>
 </html>
   <script>
     // Inisialisasi data
