@@ -1,929 +1,335 @@
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Data Peserta Kegiatan SDM Pariwisata</title>
-  <!-- TailwindCSS -->
-  <link href="https://cdn.tailwindcss.com" rel="stylesheet">
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- SheetJS -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
+<?php
+session_start();
+$host = "localhost";
+$user = "root";
+$password = "";
+$database = "sdm_pariwisata";
 
-  <style>
-    /* CSS yang diperbaiki */
-    #login-modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.7);
-      z-index: 9999;
-      justify-content: center;
-      align-items: center;
-    }
+// Koneksi database
+$conn = new mysqli($host, $user, $password, $database);
+if ($conn->connect_error) die("Koneksi gagal: " . $conn->connect_error);
 
-    .login-box {
-      background: white;
-      padding: 2rem;
-      border-radius: 0.5rem;
-      width: 100%;
-      max-width: 400px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    }
+// Fungsi helper
+function isAdmin() {
+    return isset($_SESSION['user']) && $_SESSION['user']['is_admin'] == 1;
+}
 
-    /* ... (CSS lainnya tetap sama) ... */
-  </style>
-</head>
-<body class="text-gray-800">
-  <!-- Admin Panel -->
-  <div id="admin-panel" class="fixed top-4 right-4 z-50">
-    <button id="admin-toggle" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-md hover:bg-blue-700 transition">
-      <i class="fas fa-lock mr-2"></i>Login
-    </button>
-  </div>
+function cleanInput($data) {
+    global $conn;
+    return htmlspecialchars($conn->real_escape_string(trim($data)));
+}
 
-  <!-- Konten utama -->
-  <div class="container mx-auto px-4 py-8 max-w-7xl">
-    <!-- ... (Konten utama tetap sama) ... -->
-  </div>
+// Handle Actions
+$action = $_GET['action'] ?? '';
 
-  <!-- Login Modal -->
-  <div id="login-modal">
-    <div class="login-box">
-      <h2 class="text-2xl font-bold text-center mb-6">Login Admin</h2>
-      <input type="password" id="admin-password" class="login-input" placeholder="Password">
-      <button id="login-btn" class="login-btn">Masuk</button>
-      <p id="login-error" class="text-red-500 text-sm mt-2 text-center"></p>
-    </div>
-  </div>
-
-  <!-- Edit Modal -->
-  <!-- ... (Modal edit tetap sama) ... -->
-
-  <script>
-    // Inisialisasi data dan fungsi utama
-    let originalData = [];
-    let currentEditIndex = -1;
-    const ADMIN_PASSWORD = "admin123"; // Ganti password ini
-    let isAdmin = localStorage.getItem('adminLoggedIn') === 'true';
-
-    // Fungsi toggle admin controls
-    function toggleAdminControls() {
-      const adminElements = document.querySelectorAll('[data-admin]');
-      adminElements.forEach(el => {
-        el.style.display = isAdmin ? 'block' : 'none';
-      });
-      
-      document.getElementById('admin-toggle').innerHTML = isAdmin ?
-        '<i class="fas fa-unlock mr-2"></i>Logout' :
-        '<i class="fas fa-lock mr-2"></i>Login';
-    }
-
-    // Fungsi login/logout
-    function handleAuth() {
-      if (isAdmin) {
-        isAdmin = false;
-        localStorage.removeItem('adminLoggedIn');
-      } else {
-        const password = prompt('Masukkan password admin:');
-        if (password === ADMIN_PASSWORD) {
-          isAdmin = true;
-          localStorage.setItem('adminLoggedIn', 'true');
-        } else {
-          alert('Password salah!');
+switch($action) {
+    case 'login':
+        if($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $username = cleanInput($_POST['username']);
+            $password = $_POST['password'];
+            
+            $stmt = $conn->prepare("SELECT * FROM users WHERE username = ?");
+            $stmt->bind_param("s", $username);
+            $stmt->execute();
+            $user = $stmt->get_result()->fetch_assoc();
+            
+            if($user && password_verify($password, $user['password'])) {
+                $_SESSION['user'] = $user;
+                header("Location: ?");
+                exit;
+            } else {
+                $_SESSION['error'] = "Username atau password salah!";
+            }
         }
-      }
-      toggleAdminControls();
-    }
-
-    // Event listeners untuk admin
-    document.getElementById('admin-toggle').addEventListener('click', handleAuth);
-
-    // Inisialisasi tahun dropdown
-    function initTahunDropdowns() {
-      const currentYear = new Date().getFullYear();
-      const startYear = 2019;
-      const endYear = currentYear + 5;
-
-      document.querySelectorAll('.tahun-dropdown').forEach(dropdown => {
-        dropdown.innerHTML = '<option value="">Pilih Tahun</option>';
-        for (let year = startYear; year <= endYear; year++) {
-          dropdown.innerHTML += `<option value="${year}">${year}</option>`;
-        }
-      });
-    }
-
-    // ... (Fungsi lainnya tetap sama) ...
-
-    // Inisialisasi awal
-    document.addEventListener('DOMContentLoaded', function() {
-      initTahunDropdowns();
-      loadData();
-      toggleAdminControls();
-    });
-  </script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Data Peserta Kegiatan SDM Pariwisata</title>
-  <!-- TailwindCSS -->
-  <link href="https://cdn.tailwindcss.com" rel="stylesheet">
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- SheetJS -->
-  <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-    
-    :root {
-      --primary: #3b82f6;
-      --secondary: #10b981;
-      --danger: #ef4444;
-      --dark: #1f2937;
-      --light: #f3f4f6;
-    }
-    
-    body {
-      font-family: 'Poppins', sans-serif;
-      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
-      min-height: 100vh;
-    }
-    
-    .card {
-      backdrop-filter: blur(16px);
-      background: rgba(255, 255, 255, 0.9);
-      border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-    }
-    
-    .btn {
-      transition: all 0.3s ease;
-      font-weight: 500;
-      letter-spacing: 0.5px;
-    }
-    
-    .btn-primary {
-      background: var(--primary);
-      color: white;
-    }
-    
-    .btn-secondary {
-      background: var(--secondary);
-      color: white;
-    }
-    
-    .btn-danger {
-      background: var(--danger);
-      color: white;
-    }
-    
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-    
-    .btn:active {
-      transform: translateY(0);
-    }
-    
-    input, select {
-      transition: all 0.3s ease;
-      border: 1px solid #e5e7eb;
-    }
-    
-    input:focus, select:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-    }
-    
-    table {
-      border-collapse: separate;
-      border-spacing: 0;
-    }
-    
-    th {
-      background: var(--primary);
-      color: white;
-      position: sticky;
-      top: 0;
-    }
-    
-    tr:nth-child(even) {
-      background-color: rgba(243, 244, 246, 0.5);
-    }
-    
-    tr:hover {
-      background-color: rgba(219, 234, 254, 0.5);
-    }
-    
-    .modal-overlay {
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(4px);
-    }
-    
-    .animate-fade-in {
-      animation: fadeIn 0.3s ease-out;
-    }
-    
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .badge {
-      display: inline-block;
-      padding: 0.25rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-    
-    .badge-primary {
-      background-color: #dbeafe;
-      color: var(--primary);
-    }
-    
-    .badge-secondary {
-      background-color: #d1fae5;
-      color: var(--secondary);
-    }
-  </style>
-</head>
-<body class="text-gray-800">
-  <div class="container mx-auto px-4 py-8 max-w-7xl">
-    <!-- Header -->
-    <div class="text-center mb-10">
-      <h1 class="text-4xl font-bold text-blue-700 mb-2">Manajemen Data SDM Pariwisata</h1>
-      <p class="text-lg text-gray-600">Sistem pengelolaan peserta kegiatan pelatihan SDM Pariwisata</p>
-    </div>
-
-    <!-- Main Card -->
-    <div class="card p-6 space-y-8">
-      <!-- Upload Section -->
-      <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
-        <h2 class="text-xl font-semibold text-blue-800 mb-4 flex items-center">
-          <i class="fas fa-file-excel mr-2 text-blue-600"></i>
-          Unggah Data Excel
-        </h2>
-        <form id="uploadForm" class="space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div class="md:col-span-3">
-              <label class="block text-sm font-medium text-gray-700 mb-1">File Excel</label>
-              <div class="flex">
-                <input type="file" id="excelFile" class="flex-grow border p-2 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500" accept=".xlsx, .xls" required />
-                <span class="inline-flex items-center px-3 rounded-r-lg border border-l-0 bg-gray-50 text-gray-500 text-sm">
-                  <i class="fas fa-file-spreadsheet mr-1"></i> .xlsx
-                </span>
-              </div>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Tahun Kegiatan</label>
-              <select id="tahunSelect" class="w-full border p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required>
-                <option value="">Pilih Tahun</option>
-              </select>
-            </div>
-          </div>
-          <div class="flex items-center justify-between">
-            <button type="submit" class="btn btn-primary px-6 py-2 rounded-lg">
-              <i class="fas fa-upload mr-2"></i>Unggah Data
-            </button>
-            <div id="uploadStatus" class="text-sm"></div>
-          </div>
-        </form>
-      </div>
-
-      <!-- Manual Input Section -->
-      <div class="bg-green-50 p-4 rounded-xl border border-green-100">
-        <h2 class="text-xl font-semibold text-green-800 mb-4 flex items-center">
-          <i class="fas fa-keyboard mr-2 text-green-600"></i>
-          Input Data Manual
-        </h2>
-        <form id="manualForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
-            <input type="text" placeholder="Nama peserta" id="nama" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">NIK</label>
-            <input type="text" placeholder="Nomor Induk Kependudukan" id="nik" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir</label>
-            <input type="date" id="tgl" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Jenis Kelamin</label>
-            <select id="jk" class="w-full border p-2 rounded-lg" required>
-              <option value="">Pilih Jenis Kelamin</option>
-              <option value="L">Laki-laki</option>
-              <option value="P">Perempuan</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Kecamatan</label>
-            <input type="text" placeholder="Kecamatan" id="kecamatan" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Lembaga</label>
-            <input type="text" placeholder="Lembaga/Instansi" id="lembaga" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">No. HP</label>
-            <input type="text" placeholder="Nomor telepon" id="nohp" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Pendidikan</label>
-            <input type="text" placeholder="Pendidikan terakhir" id="pendidikan" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Skema Pelatihan</label>
-            <input type="text" placeholder="Skema pelatihan" id="skema" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Tahun Kegiatan</label>
-            <select id="tahunManual" class="w-full border p-2 rounded-lg" required>
-              <option value="">Pilih Tahun</option>
-            </select>
-          </div>
-          <div class="md:col-span-1 flex items-end">
-            <button type="submit" class="btn btn-secondary w-full py-2 rounded-lg">
-              <i class="fas fa-plus-circle mr-2"></i>Tambah Data
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Data Table Section -->
-      <div class="space-y-6">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div class="flex items-center space-x-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Filter Tahun</label>
-              <select id="tahunFilter" class="border p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="">Semua Tahun</option>
-              </select>
-            </div>
-            <div class="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg">
-              <i class="fas fa-info-circle text-blue-500"></i>
-              <span class="text-sm text-blue-700">
-                Total Data: <span id="totalData" class="font-bold">0</span>
-              </span>
-            </div>
-          </div>
-          <div class="flex items-center space-x-3">
-            <div class="flex items-center">
-              <input type="checkbox" id="selectAll" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-              <label for="selectAll" class="ml-2 block text-sm text-gray-700">Pilih Semua</label>
-            </div>
-            <button id="deleteSelectedBtn" class="btn btn-danger px-4 py-2 rounded-lg">
-              <i class="fas fa-trash-alt mr-2"></i>Hapus Terpilih
-            </button>
-            <button id="downloadBtn" class="btn btn-primary px-4 py-2 rounded-lg">
-              <i class="fas fa-file-excel mr-2"></i>Unduh Excel
-            </button>
-          </div>
-        </div>
-
-        <div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-blue-600 text-white">
-              <tr>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider w-10">
-                  <input type="checkbox" id="selectAllTop">
-                </th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider w-12">No</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Nama Lengkap</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">NIK</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Tgl Lahir</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider w-10">JK</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Kecamatan</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Lembaga</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">No HP</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Pendidikan</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Skema</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider w-16">Tahun</th>
-                <th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider w-24">Aksi</th>
-              </tr>
-            </thead>
-            <tbody id="dataTableBody" class="bg-white divide-y divide-gray-200">
-              <!-- Data akan diisi oleh JavaScript -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Edit Modal -->
-  <div id="editModal" class="fixed inset-0 z-50 hidden">
-    <div class="modal-overlay absolute inset-0"></div>
-    <div class="flex items-center justify-center min-h-screen">
-      <div class="card p-6 w-full max-w-4xl animate-fade-in">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-2xl font-bold text-blue-700">
-            <i class="fas fa-edit mr-2"></i>Edit Data Peserta
-          </h2>
-          <button id="closeEditModalBtn" class="text-gray-500 hover:text-gray-700 text-xl">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <form id="editForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <input type="hidden" id="editIndex">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap</label>
-            <input type="text" placeholder="Nama peserta" id="editNama" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">NIK</label>
-            <input type="text" placeholder="Nomor Induk Kependudukan" id="editNik" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir</label>
-            <input type="date" id="editTgl" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Jenis Kelamin</label>
-            <select id="editJk" class="w-full border p-2 rounded-lg" required>
-              <option value="">Pilih Jenis Kelamin</option>
-              <option value="L">Laki-laki</option>
-              <option value="P">Perempuan</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Kecamatan</label>
-            <input type="text" placeholder="Kecamatan" id="editKecamatan" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Lembaga</label>
-            <input type="text" placeholder="Lembaga/Instansi" id="editLembaga" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">No. HP</label>
-            <input type="text" placeholder="Nomor telepon" id="editNohp" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Pendidikan</label>
-            <input type="text" placeholder="Pendidikan terakhir" id="editPendidikan" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Skema Pelatihan</label>
-            <input type="text" placeholder="Skema pelatihan" id="editSkema" class="w-full border p-2 rounded-lg" required>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Tahun Kegiatan</label>
-            <select id="editTahun" class="w-full border p-2 rounded-lg" required>
-              <option value="">Pilih Tahun</option>
-            </select>
-          </div>
-          <div class="md:col-span-3 flex justify-end space-x-3 pt-4">
-            <button type="button" id="cancelEditBtn" class="btn bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400">
-              <i class="fas fa-times mr-2"></i>Batal
-            </button>
-            <button type="submit" class="btn btn-primary px-6 py-2 rounded-lg">
-              <i class="fas fa-save mr-2"></i>Simpan Perubahan
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // Inisialisasi data
-    let originalData = [];
-    let currentEditIndex = -1;
-
-    // Fungsi untuk mengisi dropdown tahun
-    function initTahunDropdowns() {
-      const dropdowns = [
-        document.getElementById("tahunSelect"),
-        document.getElementById("tahunFilter"),
-        document.getElementById("tahunManual"),
-        document.getElementById("editTahun")
-      ];
-
-      const currentYear = new Date().getFullYear();
-      const startYear = 2019;
-      const endYear = currentYear + 5;
-
-      dropdowns.forEach(dropdown => {
-        if (!dropdown) return;
+        break;
         
-        dropdown.innerHTML = '<option value="">Pilih Tahun</option>';
-        for (let year = startYear; year <= endYear; year++) {
-          dropdown.innerHTML += `<option value="${year}">${year}</option>`;
-        }
-      });
-    }
-
-    // Load data dari localStorage
-    function loadData() {
-      try {
-        const savedData = localStorage.getItem('sdmPariwisataData');
-        if (savedData) {
-          originalData = JSON.parse(savedData);
-          renderData();
-        }
-      } catch (e) {
-        console.error("Gagal memuat data:", e);
-        showAlert("error", "Terjadi kesalahan saat memuat data. Silakan coba lagi.");
-      }
-    }
-
-    // Simpan data ke localStorage
-    function saveData() {
-      try {
-        localStorage.setItem('sdmPariwisataData', JSON.stringify(originalData));
-        return true;
-      } catch (e) {
-        console.error("Gagal menyimpan data:", e);
-        showAlert("error", "Terjadi kesalahan saat menyimpan data. Data mungkin terlalu besar.");
-        return false;
-      }
-    }
-
-    // Render data ke tabel
-    function renderData() {
-      const tbody = document.getElementById("dataTableBody");
-      if (!tbody) return;
-
-      const tahunFilter = document.getElementById("tahunFilter").value;
-      
-      let filteredData = originalData;
-      if (tahunFilter) {
-        filteredData = originalData.filter(item => item.Tahun == tahunFilter);
-      }
-      
-      tbody.innerHTML = '';
-      
-      filteredData.forEach((item, index) => {
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-blue-50 transition-colors';
-        tr.innerHTML = `
-          <td class="px-4 py-3 whitespace-nowrap text-center">
-            <input type="checkbox" class="rowCheckbox h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" data-index="${index}">
-          </td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${index + 1}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm">${item['Nama Lengkap'] || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm font-mono">${item.NIK || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm">${formatDate(item['Tgl Lahir']) || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm text-center">
-            ${item.JK === 'L' ? '<span class="badge badge-primary">L</span>' : 
-              item.JK === 'P' ? '<span class="badge badge-secondary">P</span>' : '-'}
-          </td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm">${item.Kecamatan || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm">${item.Lembaga || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm">${item['No HP'] || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm">${item.Pendidikan || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm">${item.Skema || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm text-center font-medium">${item.Tahun || '-'}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-sm text-center space-x-1">
-            <button data-index="${index}" class="editBtn text-blue-600 hover:text-blue-800 p-2 rounded-full hover:bg-blue-100">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button data-index="${index}" class="deleteBtn text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-100">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      // Update total data
-      document.getElementById('totalData').textContent = filteredData.length;
-      
-      // Tambahkan event listener untuk tombol edit dan hapus
-      document.querySelectorAll('.editBtn').forEach(btn => {
-        btn.addEventListener('click', function() {
-          openEditModal(parseInt(this.getAttribute('data-index')));
-        });
-      });
-
-      document.querySelectorAll('.deleteBtn').forEach(btn => {
-        btn.addEventListener('click', function() {
-          deleteSingleData(parseInt(this.getAttribute('data-index')));
-        });
-      });
-    }
-
-    // Format tanggal
-    function formatDate(dateString) {
-      if (!dateString) return '';
-      const date = new Date(dateString);
-      return date.toLocaleDateString('id-ID');
-    }
-
-    // Tampilkan alert
-    function showAlert(type, message) {
-      const statusElement = document.getElementById("uploadStatus");
-      statusElement.textContent = message;
-      statusElement.className = `text-sm ${type === 'error' ? 'text-red-600' : 'text-green-600'}`;
-      
-      if (type === 'success') {
-        setTimeout(() => {
-          statusElement.textContent = '';
-        }, 3000);
-      }
-    }
-
-    // Fungsi untuk menangani upload file Excel
-    function handleExcelUpload(event) {
-      event.preventDefault();
-      
-      const fileInput = document.getElementById("excelFile");
-      const tahunSelect = document.getElementById("tahunSelect");
-      
-      if (!fileInput.files || fileInput.files.length === 0) {
-        showAlert("error", "Pilih file Excel terlebih dahulu!");
-        return;
-      }
-      
-      if (!tahunSelect.value) {
-        showAlert("error", "Pilih tahun terlebih dahulu!");
-        return;
-      }
-      
-      const file = fileInput.files[0];
-      const reader = new FileReader();
-      
-      reader.onload = function(e) {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          
-          if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-            showAlert("error", "File Excel tidak valid atau kosong!");
-            return;
-          }
-          
-          const firstSheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[firstSheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet);
-          
-          if (jsonData.length === 0) {
-            showAlert("error", "Tidak ada data yang ditemukan dalam sheet!");
-            return;
-          }
-          
-          // Proses data
-          const processedData = jsonData.map(item => {
-            // Bersihkan data dari nilai undefined dan trim string
-            const cleanItem = {};
-            for (const key in item) {
-              if (item[key] === undefined || item[key] === null) {
-                cleanItem[key] = '';
-              } else if (typeof item[key] === 'string') {
-                cleanItem[key] = item[key].trim();
-              } else {
-                cleanItem[key] = item[key];
-              }
+    case 'logout':
+        session_destroy();
+        header("Location: ?");
+        exit;
+        
+    case 'tambah':
+        if(isAdmin() && $_SERVER['REQUEST_METHOD'] == 'POST') {
+            $fields = [
+                'tahun', 'nama', 'nik', 'jenis_kelamin', 'tanggal_lahir',
+                'asal_daerah', 'pendidikan_terakhir', 'organisasi_lembaga',
+                'nomor_telepon', 'skema_pelatihan'
+            ];
+            
+            $values = [];
+            foreach($fields as $field) {
+                $values[] = cleanInput($_POST[$field]);
             }
             
-            return {
-              ...cleanItem,
-              Tahun: parseInt(tahunSelect.value)
-            };
-          });
-          
-          // Tambahkan ke data yang ada
-          originalData = [...originalData, ...processedData];
-          
-          if (saveData()) {
-            showAlert("success", `Berhasil mengunggah ${processedData.length} data dari file Excel!`);
-            renderData();
-            fileInput.value = '';
-          }
-        } catch (error) {
-          console.error("Error processing Excel file:", error);
-          showAlert("error", "Terjadi kesalahan saat memproses file Excel!");
+            $stmt = $conn->prepare("INSERT INTO peserta (".implode(',', $fields).") 
+                                   VALUES (".str_repeat('?,', count($fields)-1)."?)");
+            $stmt->bind_param(str_repeat('s', count($fields)), ...$values);
+            
+            if($stmt->execute()) {
+                $_SESSION['success'] = "Data berhasil ditambahkan!";
+            } else {
+                $_SESSION['error'] = "Gagal menambahkan data!";
+            }
+            header("Location: ?");
+            exit;
         }
-      };
-      
-      reader.onerror = function() {
-        showAlert("error", "Gagal membaca file!");
-      };
-      
-      reader.readAsArrayBuffer(file);
-    }
-
-    // Fungsi untuk menambah data manual
-    function handleManualAdd(event) {
-      event.preventDefault();
-      
-      const form = event.target;
-      const tahunManual = document.getElementById("tahunManual");
-      
-      if (!tahunManual.value) {
-        showAlert("error", "Pilih tahun terlebih dahulu!");
-        return;
-      }
-      
-      const data = {
-        No: originalData.length + 1,
-        "Nama Lengkap": document.getElementById("nama").value.trim(),
-        NIK: document.getElementById("nik").value.trim(),
-        "Tgl Lahir": document.getElementById("tgl").value,
-        JK: document.getElementById("jk").value,
-        Kecamatan: document.getElementById("kecamatan").value.trim(),
-        Lembaga: document.getElementById("lembaga").value.trim(),
-        "No HP": document.getElementById("nohp").value.trim(),
-        Pendidikan: document.getElementById("pendidikan").value.trim(),
-        Skema: document.getElementById("skema").value.trim(),
-        Tahun: parseInt(tahunManual.value)
-      };
-      
-      originalData.push(data);
-      
-      if (saveData()) {
-        renderData();
-        form.reset();
-        showAlert("success", "Data berhasil ditambahkan!");
-      }
-    }
-
-    // Fungsi untuk modal edit
-    function openEditModal(index) {
-      currentEditIndex = index;
-      const data = originalData[index];
-      
-      document.getElementById("editIndex").value = index;
-      document.getElementById("editNama").value = data['Nama Lengkap'] || '';
-      document.getElementById("editNik").value = data.NIK || '';
-      document.getElementById("editTgl").value = data['Tgl Lahir'] || '';
-      document.getElementById("editJk").value = data.JK || '';
-      document.getElementById("editKecamatan").value = data.Kecamatan || '';
-      document.getElementById("editLembaga").value = data.Lembaga || '';
-      document.getElementById("editNohp").value = data['No HP'] || '';
-      document.getElementById("editPendidikan").value = data.Pendidikan || '';
-      document.getElementById("editSkema").value = data.Skema || '';
-      document.getElementById("editTahun").value = data.Tahun || '';
-      
-      document.getElementById("editModal").classList.remove("hidden");
-    }
-
-    function closeEditModal() {
-      document.getElementById("editModal").classList.add("hidden");
-      currentEditIndex = -1;
-    }
-
-    function handleEditSubmit(event) {
-      event.preventDefault();
-      
-      if (currentEditIndex === -1) return;
-      
-      originalData[currentEditIndex] = {
-        ...originalData[currentEditIndex],
-        "Nama Lengkap": document.getElementById("editNama").value.trim(),
-        NIK: document.getElementById("editNik").value.trim(),
-        "Tgl Lahir": document.getElementById("editTgl").value,
-        JK: document.getElementById("editJk").value,
-        Kecamatan: document.getElementById("editKecamatan").value.trim(),
-        Lembaga: document.getElementById("editLembaga").value.trim(),
-        "No HP": document.getElementById("editNohp").value.trim(),
-        Pendidikan: document.getElementById("editPendidikan").value.trim(),
-        Skema: document.getElementById("editSkema").value.trim(),
-        Tahun: parseInt(document.getElementById("editTahun").value)
-      };
-      
-      if (saveData()) {
-        renderData();
-        closeEditModal();
-        showAlert("success", "Data berhasil diperbarui!");
-      }
-    }
-
-    // Fungsi untuk hapus data
-    function deleteSingleData(index) {
-      if (confirm('Apakah Anda yakin ingin menghapus data ini?')) {
-        originalData.splice(index, 1);
-        if (saveData()) {
-          renderData();
-          showAlert("success", "Data berhasil dihapus!");
+        break;
+        
+    case 'edit':
+        if(isAdmin() && isset($_GET['id'])) {
+            // Handle edit data
         }
-      }
-    }
-
-    function toggleSelectAll() {
-      const checkboxes = document.querySelectorAll('.rowCheckbox');
-      const selectAll = document.getElementById('selectAll').checked;
-      
-      checkboxes.forEach(checkbox => {
-        checkbox.checked = selectAll;
-      });
-      
-      // Sync dengan checkbox di header tabel
-      document.getElementById('selectAllTop').checked = selectAll;
-    }
-
-    function deleteSelectedData() {
-      const checkboxes = document.querySelectorAll('.rowCheckbox:checked');
-      if (checkboxes.length === 0) {
-        showAlert("error", "Pilih data yang akan dihapus terlebih dahulu!");
-        return;
-      }
-      
-      if (!confirm(`Apakah Anda yakin ingin menghapus ${checkboxes.length} data terpilih?`)) {
-        return;
-      }
-      
-      // Hapus dari yang terakhir agar index tidak berubah
-      const indexesToDelete = Array.from(checkboxes)
-        .map(checkbox => parseInt(checkbox.getAttribute('data-index')))
-        .sort((a, b) => b - a);
-      
-      indexesToDelete.forEach(index => {
-        originalData.splice(index, 1);
-      });
-      
-      if (saveData()) {
-        renderData();
-        document.getElementById('selectAll').checked = false;
-        document.getElementById('selectAllTop').checked = false;
-        showAlert("success", `${checkboxes.length} data berhasil dihapus!`);
-      }
-    }
-
-    // Fungsi untuk download data
-    function downloadData() {
-      const tahunFilter = document.getElementById("tahunFilter").value;
-      let dataToDownload = originalData;
-      
-      if (tahunFilter) {
-        dataToDownload = originalData.filter(item => item.Tahun == tahunFilter);
-      }
-      
-      if (dataToDownload.length === 0) {
-        showAlert("error", "Tidak ada data untuk diunduh!");
-        return;
-      }
-      
-      try {
-        // Buat worksheet
-        const ws = XLSX.utils.json_to_sheet(dataToDownload);
+        break;
         
-        // Buat workbook
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Data Peserta");
+    case 'hapus':
+        if(isAdmin() && isset($_GET['id'])) {
+            $stmt = $conn->prepare("DELETE FROM peserta WHERE id = ?");
+            $stmt->bind_param("i", $_GET['id']);
+            if($stmt->execute()) {
+                $_SESSION['success'] = "Data berhasil dihapus!";
+            } else {
+                $_SESSION['error'] = "Gagal menghapus data!";
+            }
+            header("Location: ?");
+            exit;
+        }
+        break;
         
-        // Generate nama file
-        const fileName = `Data Peserta SDM Pariwisata${tahunFilter ? ' Tahun ' + tahunFilter : ''}.xlsx`;
+    case 'import':
+        if(isAdmin() && isset($_FILES['file'])) {
+            require 'vendor/autoload.php';
+            $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+            $spreadsheet = $reader->load($_FILES['file']['tmp_name']);
+            $data = $spreadsheet->getActiveSheet()->toArray();
+            
+            // Proses import data
+            $_SESSION['success'] = "Data berhasil diimport!";
+            header("Location: ?");
+            exit;
+        }
+        break;
         
-        // Download file
-        XLSX.writeFile(wb, fileName);
-      } catch (error) {
-        console.error("Error generating Excel file:", error);
-        showAlert("error", "Terjadi kesalahan saat membuat file Excel!");
-      }
-    }
+    case 'export':
+        require 'vendor/autoload.php';
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Header
+        $sheet->setCellValue('A1', 'Tahun');
+        $sheet->setCellValue('B1', 'Nama');
+        // ... (tambahkan kolom lainnya)
+        
+        // Data
+        $result = $conn->query("SELECT * FROM peserta");
+        $row = 2;
+        while($data = $result->fetch_assoc()) {
+            $sheet->setCellValue('A'.$row, $data['tahun']);
+            $sheet->setCellValue('B'.$row, $data['nama']);
+            // ... (isi kolom lainnya)
+            $row++;
+        }
+        
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="Data_Peserta.xlsx"');
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+}
 
-    // Inisialisasi event listeners
-    function initEventListeners() {
-      // Form upload Excel
-      document.getElementById("uploadForm").addEventListener("submit", handleExcelUpload);
-      
-      // Form input manual
-      document.getElementById("manualForm").addEventListener("submit", handleManualAdd);
-      
-      // Form edit
-      document.getElementById("editForm").addEventListener("submit", handleEditSubmit);
-      
-      // Tombol close modal
-      document.getElementById("closeEditModalBtn").addEventListener("click", closeEditModal);
-      document.getElementById("cancelEditBtn").addEventListener("click", closeEditModal);
-      
-      // Tombol select all
-      document.getElementById("selectAll").addEventListener("change", toggleSelectAll);
-      document.getElementById("selectAllTop").addEventListener("change", function() {
-        document.getElementById('selectAll').checked = this.checked;
-        toggleSelectAll();
-      });
-      
-      // Tombol hapus terpilih
-      document.getElementById("deleteSelectedBtn").addEventListener("click", deleteSelectedData);
-      
-      // Tombol download
-      document.getElementById("downloadBtn").addEventListener("click", downloadData);
-      
-      // Filter tahun
-      document.getElementById("tahunFilter").addEventListener("change", renderData);
-    }
+// Ambil data peserta
+$search = $_GET['search'] ?? '';
+$tahun = $_GET['tahun'] ?? '';
 
-    // Inisialisasi saat halaman dimuat
-    document.addEventListener('DOMContentLoaded', function() {
-      initTahunDropdowns();
-      initEventListeners();
-      loadData();
-    });
-  </script>
+$query = "SELECT * FROM peserta WHERE nama LIKE ? ";
+$params = ["%$search%"];
+$types = "s";
+
+if(!empty($tahun)) {
+    $query .= " AND tahun = ?";
+    $params[] = $tahun;
+    $types .= "i";
+}
+
+$stmt = $conn->prepare($query);
+$stmt->bind_param($types, ...$params);
+$stmt->execute();
+$peserta = $stmt->get_result();
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDM Pariwisata</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <style>
+        .main-container { max-width: 99%; margin: 20px auto; padding: 20px; }
+        .action-buttons { gap: 10px; }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="main-container bg-white rounded shadow">
+        <?php if(!isset($_SESSION['user'])): ?>
+            <!-- Login Form -->
+            <div class="row justify-content-center">
+                <div class="col-md-4">
+                    <h2 class="text-center mb-4">Login Sistem</h2>
+                    <?php if(isset($_SESSION['error'])): ?>
+                        <div class="alert alert-danger"><?= $_SESSION['error'] ?></div>
+                        <?php unset($_SESSION['error']); ?>
+                    <?php endif; ?>
+                    <form method="post" action="?action=login">
+                        <div class="mb-3">
+                            <input type="text" name="username" class="form-control" placeholder="Username" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="password" name="password" class="form-control" placeholder="Password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Login</button>
+                    </form>
+                </div>
+            </div>
+        <?php else: ?>
+            <!-- Dashboard -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    Data Peserta Pelatihan 
+                    <small class="text-muted fs-5">(2019-2030)</small>
+                </h2>
+                <div class="d-flex action-buttons">
+                    <?php if(isAdmin()): ?>
+                        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#tambahModal">
+                            <i class="bi bi-plus-lg"></i> Tambah
+                        </button>
+                        <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#importModal">
+                            <i class="bi bi-upload"></i> Import
+                        </button>
+                    <?php endif; ?>
+                    <a href="?action=export" class="btn btn-warning">
+                        <i class="bi bi-download"></i> Export
+                    </a>
+                    <a href="?action=logout" class="btn btn-danger">
+                        <i class="bi bi-box-arrow-right"></i> Logout
+                    </a>
+                </div>
+            </div>
+
+            <!-- Filter Form -->
+            <form class="row g-3 mb-4 bg-light p-3 rounded">
+                <div class="col-md-4">
+                    <input type="text" name="search" class="form-control" placeholder="Cari nama..." 
+                           value="<?= htmlspecialchars($search) ?>">
+                </div>
+                <div class="col-md-3">
+                    <select name="tahun" class="form-select">
+                        <option value="">Semua Tahun</option>
+                        <?php for($t=2019; $t<=2030; $t++): ?>
+                            <option value="<?= $t ?>" <?= $t == $tahun ? 'selected' : '' ?>>
+                                <?= $t ?>
+                            </option>
+                        <?php endfor; ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="?" class="btn btn-secondary">Reset</a>
+                </div>
+            </form>
+
+            <!-- Data Table -->
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered table-striped">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Tahun</th>
+                            <th>Nama</th>
+                            <th>NIK</th>
+                            <th>Jenis Kelamin</th>
+                            <th>Tanggal Lahir</th>
+                            <th>Asal Daerah</th>
+                            <th>Pendidikan</th>
+                            <th>Organisasi</th>
+                            <th>Telepon</th>
+                            <th>Skema</th>
+                            <?php if(isAdmin()): ?>
+                                <th>Aksi</th>
+                            <?php endif; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while($row = $peserta->fetch_assoc()): ?>
+                        <tr>
+                            <td><?= $row['tahun'] ?></td>
+                            <td><?= htmlspecialchars($row['nama']) ?></td>
+                            <td><?= $row['nik'] ?></td>
+                            <td><?= $row['jenis_kelamin'] ?></td>
+                            <td><?= date('d/m/Y', strtotime($row['tanggal_lahir'])) ?></td>
+                            <td><?= $row['asal_daerah'] ?></td>
+                            <td><?= $row['pendidikan_terakhir'] ?></td>
+                            <td><?= $row['organisasi_lembaga'] ?></td>
+                            <td><?= $row['nomor_telepon'] ?></td>
+                            <td><?= $row['skema_pelatihan'] ?></td>
+                            <?php if(isAdmin()): ?>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editModal"
+                                            data-id="<?= $row['id'] ?>">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <a href="?action=hapus&id=<?= $row['id'] ?>" 
+                                       class="btn btn-sm btn-danger"
+                                       onclick="return confirm('Yakin hapus data?')">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            <?php endif; ?>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- Modals -->
+    <?php if(isset($_SESSION['user']) && isAdmin()): ?>
+        <!-- Tambah Modal -->
+        <div class="modal fade" id="tambahModal">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <form method="post" action="?action=tambah">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Tambah Data Peserta</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-3">
+                                <!-- Form fields here -->
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="submit" class="btn btn-primary">Simpan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('table').DataTable({
+                ordering: false,
+                dom: '<"top"f>rt<"bottom"lip><"clear">'
+            });
+        });
+    </script>
 </body>
 </html>
-
+<?php $conn->close(); ?>
